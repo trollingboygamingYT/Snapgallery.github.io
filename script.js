@@ -1,162 +1,108 @@
-const mediaInput = document.getElementById('mediaInput');
-const uploadButton = document.getElementById('uploadButton');
-const gallery = document.getElementById('gallery');
-const dropZone = document.getElementById('dropZone');
+// Function to handle file selection and add images to the gallery
+document.getElementById('imageUpload').addEventListener('change', handleFileSelect);
 
-// Modal elements
-const modal = document.getElementById('mediaModal');
-const modalContent = document.getElementById('modalContent');
-const closeModal = document.getElementById('closeModal');
+function handleFileSelect(event) {
+    const files = event.target.files;
+    const gallery = document.getElementById('gallery');
 
-// Track added media files using a Set for base64 data
-const addedMedia = new Set();
+    // Loop through each selected file and display it
+    for (const file of files) {
+        if (file.type.startsWith('image/')) {
+            const imgElement = document.createElement('img');
+            const reader = new FileReader();
 
-function loadMediaFromLocalStorage() {
-  const savedMedia = JSON.parse(localStorage.getItem('savedMedia'));
-  if (savedMedia) {
-    savedMedia.forEach((mediaData) => {
-      displayMedia(mediaData);
+            reader.onload = function() {
+                imgElement.src = reader.result;
+                imgElement.alt = file.name;
+
+                // Create a remove button for each image
+                const removeButton = document.createElement('button');
+                removeButton.classList.add('remove-btn');
+                removeButton.textContent = 'X';
+                removeButton.onclick = () => removeImage(imgElement, reader.result);
+
+                // Append the image and remove button to the gallery
+                const imageContainer = document.createElement('div');
+                imageContainer.style.position = 'relative';
+                imageContainer.appendChild(imgElement);
+                imageContainer.appendChild(removeButton);
+
+                // Add click event to open image in lightbox
+                imgElement.addEventListener('click', () => openLightbox(reader.result));
+
+                gallery.appendChild(imageContainer);
+
+                // Save the image to localStorage
+                saveImageToLocalStorage(reader.result);
+            };
+
+            reader.readAsDataURL(file);
+        }
+    }
+}
+
+// Function to remove an image from the gallery and localStorage
+function removeImage(imgElement, imgSrc) {
+    imgElement.parentElement.remove();
+    removeImageFromLocalStorage(imgSrc);
+}
+
+// Function to open image in lightbox
+function openLightbox(imageSrc) {
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    lightboxImg.src = imageSrc;
+    lightbox.style.display = 'flex';
+}
+
+// Function to close lightbox
+function closeLightbox() {
+    const lightbox = document.getElementById('lightbox');
+    lightbox.style.display = 'none';
+}
+
+// Function to save image to localStorage
+function saveImageToLocalStorage(imageSrc) {
+    let savedImages = JSON.parse(localStorage.getItem('galleryImages')) || [];
+    savedImages.push(imageSrc);
+    localStorage.setItem('galleryImages', JSON.stringify(savedImages));
+}
+
+// Function to remove image from localStorage
+function removeImageFromLocalStorage(imageSrc) {
+    let savedImages = JSON.parse(localStorage.getItem('galleryImages')) || [];
+    savedImages = savedImages.filter(img => img !== imageSrc);
+    localStorage.setItem('galleryImages', JSON.stringify(savedImages));
+}
+
+// Function to load saved images from localStorage
+function loadSavedImages() {
+    const gallery = document.getElementById('gallery');
+    let savedImages = JSON.parse(localStorage.getItem('galleryImages')) || [];
+
+    savedImages.forEach(imageSrc => {
+        const imgElement = document.createElement('img');
+        imgElement.src = imageSrc;
+        imgElement.alt = 'Saved Image';
+
+        // Create a remove button for each image
+        const removeButton = document.createElement('button');
+        removeButton.classList.add('remove-btn');
+        removeButton.textContent = 'X';
+        removeButton.onclick = () => removeImage(imgElement, imageSrc);
+
+        // Append the image and remove button to the gallery
+        const imageContainer = document.createElement('div');
+        imageContainer.style.position = 'relative';
+        imageContainer.appendChild(imgElement);
+        imageContainer.appendChild(removeButton);
+
+        // Add click event to open image in lightbox
+        imgElement.addEventListener('click', () => openLightbox(imageSrc));
+
+        gallery.appendChild(imageContainer);
     });
-  }
 }
 
-function saveMediaToLocalStorage() {
-  const mediaItems = [];
-  const mediaWrappers = gallery.querySelectorAll('.media-wrapper');
-  mediaWrappers.forEach((wrapper) => {
-    const mediaElement = wrapper.querySelector('.media-item');
-    if (mediaElement) {
-      mediaItems.push(mediaElement.src);
-    }
-  });
-  localStorage.setItem('savedMedia', JSON.stringify(mediaItems));
-}
-
-function displayMedia(mediaData) {
-  const mediaWrapper = document.createElement('div');
-  mediaWrapper.classList.add('media-wrapper');
-
-  let mediaElement;
-  const fileType = mediaData.split(';')[0].split('/')[0]; // Extract file type from base64 string
-
-  // Check if it's an image or video
-  if (fileType === 'image' || mediaData.includes('image/gif')) {
-    mediaElement = document.createElement('img');
-    mediaElement.src = mediaData;
-    mediaElement.classList.add('media-item');
-  } else if (fileType === 'video') {
-    mediaElement = document.createElement('video');
-    mediaElement.src = mediaData;
-    mediaElement.classList.add('media-item');
-    mediaElement.controls = true;
-  }
-
-  // Add click event to enlarge the media
-  mediaElement.addEventListener('click', () => {
-    modal.style.display = 'flex';
-    modalContent.innerHTML = `<img src="${mediaElement.src}">`;
-  });
-
-  // Create delete button
-  const deleteButton = document.createElement('button');
-  deleteButton.textContent = 'Remove';
-  deleteButton.classList.add('delete-button');
-
-  // Remove media on delete button click
-  deleteButton.addEventListener('click', () => {
-    gallery.removeChild(mediaWrapper);
-    addedMedia.delete(mediaData);
-    saveMediaToLocalStorage(); // Update localStorage
-  });
-
-  mediaWrapper.appendChild(mediaElement);
-  mediaWrapper.appendChild(deleteButton);
-  gallery.appendChild(mediaWrapper);
-}
-
-function handleFiles(files) {
-  Array.from(files).forEach((file) => {
-    if (file.size > 500 * 1024 * 1024) {
-      alert('File size must be under 500MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      const fileType = file.type.split('/')[0]; // Determine the file type
-
-      if (fileType === 'image' || file.type === 'image/gif') {
-        const imageData = e.target.result;
-
-        // Check for duplicates using base64 string
-        if (addedMedia.has(imageData)) {
-          alert('This image has already been added.');
-          return;
-        }
-
-        addedMedia.add(imageData);
-        displayMedia(imageData);
-        saveMediaToLocalStorage(); // Save image to localStorage
-      } else if (fileType === 'video') {
-        const videoData = e.target.result;
-
-        // Check for duplicates using base64 string
-        if (addedMedia.has(videoData)) {
-          alert('This video has already been added.');
-          return;
-        }
-
-        addedMedia.add(videoData);
-        displayMedia(videoData);
-        saveMediaToLocalStorage(); // Save video to localStorage
-      } else {
-        alert('Only images and videos (MP4, WEBM) are supported.');
-      }
-    };
-
-    if (file.type.startsWith('image') || file.type === 'image/gif') {
-      reader.readAsDataURL(file);
-    } else if (file.type.startsWith('video')) {
-      reader.readAsDataURL(file);
-    } else {
-      alert('Unsupported file type');
-    }
-  });
-}
-
-// Handle upload button click
-uploadButton.addEventListener('click', () => {
-  const files = mediaInput.files;
-  if (files.length === 0) {
-    alert('Please select at least one media file.');
-    return;
-  }
-  handleFiles(files);
-  mediaInput.value = ''; // Clear file input
-});
-
-// Handle drag-and-drop functionality
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('dragging');
-});
-
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
-
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('dragging');
-  handleFiles(e.dataTransfer.files);
-});
-
-// Close modal when clicking the close button
-closeModal.addEventListener('click', () => (modal.style.display = 'none'));
-
-// Close modal when clicking outside the modal content
-modal.addEventListener('click', (e) => {
-  if (e.target === modal) modal.style.display = 'none';
-});
-
-// Load saved media on page load
-window.addEventListener('load', loadMediaFromLocalStorage);
+// Load saved images when the page loads
+window.onload = loadSavedImages;
